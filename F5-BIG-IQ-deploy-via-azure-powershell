@@ -1,9 +1,9 @@
 # Working template, takes like 10 min to deploy
 # Provide values for the variables
 # This template can be used if vnet has custom (not default Azure) dns setup -->
-# At the nic we force this template to use Azure dns, since deploy will fail with custom dns
+# At the nic we force this template to use Azure dns, since deploy will fail with custom dns (anything but 168.63.129.16)
 # Also at the nic we use the subnet id as a number of that subnet inside of the vnet -->
-# Get-AzVirtualNetwork -Name dc41-app-vnet | findstr Name -->
+# Get-AzVirtualNetwork -Name test-vnet | findstr Name -->
 # First subnet ID is 0
 #
 $bigiqInstance = 'bigiq-01'
