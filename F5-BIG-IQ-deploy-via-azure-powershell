@@ -1,0 +1,69 @@
+# Working template, takes like 10 min to deploy
+# Provide values for the variables
+# This template can be used if vnet has custom (not default Azure) dns setup -->
+# At the nic we force this template to use Azure dns, since deploy will fail with custom dns
+# Also at the nic we use the subnet id as a number of that subnet inside of the vnet -->
+# Get-AzVirtualNetwork -Name dc41-app-vnet | findstr Name -->
+# First subnet ID is 0
+#
+$bigiqInstance = 'bigiq-01'
+                        
+#vnet to use
+$resourceGroup = 'test-rg'
+$location = 'eastus'
+$vmSize = 'Standard_D8s_v3'
+$diskSizeGB = '95'
+                        
+#Azure Network Info -- Can be shared between machines
+$vnetName = 'test-vnet'
+                        
+# VM specific info, needs to be changed for each deployment
+$ipName = 'bigiq-01-pip'
+$nic1Name = 'bigiq-01-mgmt'
+$nic2Name = 'bigiq-01-int'
+                        
+$vmName = $bigiqInstance
+$computerName = $bigiqInstance
+                        
+# Get the username and password to be used for the administrators account on the VM. 
+# This is used when connecting to the VM using RDP.
+                        
+$cred = Get-Credential
+                        
+$vnet = Get-AzVirtualNetwork -ResourceGroupName $resourceGroup -Name $vnetName
+$pip = New-AzPublicIpAddress -Name $ipName -ResourceGroupName $resourceGroup -Location $location `
+-Sku Standard -AllocationMethod Static
+                        
+# Needs additional dns server ip, otherwise vm deploy will fail (if vnet has global dns setup, if not you can skip the DnsServer part)                        
+$nic1 = New-AzNetworkInterface -Name $nic1Name -ResourceGroupName $resourceGroup -Location $location `
+-SubnetId $vnet.Subnets[42].Id -PublicIpAddressId $pip.Id -DnsServer "168.63.129.16" 
+                        
+                        
+$nic2 = New-AzNetworkInterface -Name $nic2Name -ResourceGroupName $resourceGroup -Location $location `
+-SubnetId $vnet.Subnets[42].Id -DnsServer "168.63.129.16"
+                        
+# Start building the VM configuration using AV-Set
+$vm = New-AzVMConfig -VMName $vmName -VMSize $vmSize -AvailabilitySetId $avset[1].Id
+$vm = Set-AzVMOperatingSystem -VM $vm -Linux -ComputerName $computerName -Credential $cred
+$vm = Set-AzVMOSDisk -VM $vm -DiskSizeInGB $diskSizeGB -CreateOption FromImage -Caching ReadWrite
+$vm = Set-AzVMSourceImage -VM $vm -PublisherName f5-networks -Offer f5-big-iq -Skus "f5-bigiq-virtual-edition-byol" -Version latest
+                        
+                        
+                        
+# Finish the VM configuration and add the NIC.
+$vm = Add-AzVMNetworkInterface -VM $vm -Id $nic1.Id -Primary
+$vm = Add-AzVMNetworkInterface -VM $vm -Id $nic2.Id
+                        
+                        
+# Set the VM image as source image for the new VM
+Set-AzVMPlan -VM $vm -Name f5-bigiq-virtual-edition-byol -Product f5-big-iq -Publisher f5-networks
+                        
+#Have to accept terms
+Get-AzMarketplaceTerms -Name f5-bigiq-virtual-edition-byol -Product f5-big-iq -Publisher f5-networks | Set-AzMarketplaceTerms -Accept
+# Create the VM
+New-AzVM -VM $vm -ResourceGroupName $resourceGroup -Location $location
+                        
+# Verify that the VM was created
+$vmList = Get-AzVM -ResourceGroupName $resourceGroup 
+$vmList.Name
+                    
